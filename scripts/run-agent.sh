@@ -36,13 +36,18 @@ notify_discord() {
     return 0
   fi
 
-  python3 - <<'PY' "$DISCORD_WEBHOOK_URL" "$content"
-import json, sys, urllib.request
+  python3 - <<'PY' "$DISCORD_WEBHOOK_URL" "$content" || true
+import json, sys, urllib.request, urllib.error
 url = sys.argv[1]
 content = sys.argv[2]
 data = json.dumps({"content": content}).encode("utf-8")
 req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-urllib.request.urlopen(req, timeout=15).read()
+try:
+    urllib.request.urlopen(req, timeout=15).read()
+except urllib.error.HTTPError as exc:
+    print(f"discord notification failed: http {exc.code}", file=sys.stderr)
+except Exception as exc:
+    print(f"discord notification failed: {exc}", file=sys.stderr)
 PY
 }
 
