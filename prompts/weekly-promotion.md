@@ -36,3 +36,4 @@ Rules:
 - Preserve provenance.
 - Never force push.
 - If git conflicts occur, stop and report them.
+- After finishing the work, provide a brief final summary and then stop. Do not continue exploring once the commit/push decision is complete.

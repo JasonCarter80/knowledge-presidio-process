@@ -60,6 +60,12 @@ Override the model:
 CODEX_MODEL=gpt-5.4 ./scripts/run-agent.sh weekly-promotion
 ```
 
+Override the maximum runtime in seconds:
+
+```bash
+JOB_TIMEOUT_SECONDS=1200 ./scripts/run-agent.sh daily-ingest
+```
+
 ## Discord Notifications
 
 Optional Discord summaries can be sent after each run.
@@ -81,6 +87,7 @@ Notification behavior:
 - success with changes: includes the new commit subject and changed file count
 - success with no material changes: indicates no commit was created
 - failure: indicates the job failed and points to local logs
+- timeout: indicates the Codex run exceeded the local watchdog limit
 
 ## Scheduling
 

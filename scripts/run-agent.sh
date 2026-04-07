@@ -14,6 +14,7 @@ CODEX_BIN="${CODEX_BIN:-codex}"
 CODEX_MODEL="${CODEX_MODEL:-}"
 PRINT_ONLY="${PRINT_ONLY:-0}"
 LOCAL_ENV_FILE="${HOME}/.config/knowledge-presidio-process.env"
+JOB_TIMEOUT_SECONDS="${JOB_TIMEOUT_SECONDS:-900}"
 
 if [[ -f "$LOCAL_ENV_FILE" ]]; then
   # shellcheck disable=SC1090
@@ -72,7 +73,7 @@ if [[ "$PRINT_ONLY" == "1" ]]; then
   exit 0
 fi
 
-CMD=("$CODEX_BIN" exec "--cwd" "$VAULT_PATH" "--sandbox" "danger-full-access" "--ask-for-approval" "never")
+CMD=("$CODEX_BIN" exec "--cd" "$VAULT_PATH" "--dangerously-bypass-approvals-and-sandbox")
 
 if [[ -n "$CODEX_MODEL" ]]; then
   CMD+=("--model" "$CODEX_MODEL")
@@ -81,14 +82,31 @@ fi
 BEFORE_HEAD="$(git -C "$VAULT_PATH" rev-parse HEAD 2>/dev/null || true)"
 
 set +e
-"${CMD[@]}" "$(cat "$TMP_PROMPT")"
+python3 - <<'PY' "$JOB_TIMEOUT_SECONDS" "${CMD[@]}" "$(cat "$TMP_PROMPT")"
+import subprocess
+import sys
+
+timeout = int(sys.argv[1])
+cmd = sys.argv[2:]
+
+try:
+    completed = subprocess.run(cmd, timeout=timeout)
+    raise SystemExit(completed.returncode)
+except subprocess.TimeoutExpired:
+    print(f"codex job timed out after {timeout} seconds", file=sys.stderr)
+    raise SystemExit(124)
+PY
 STATUS=$?
 set -e
 
 AFTER_HEAD="$(git -C "$VAULT_PATH" rev-parse HEAD 2>/dev/null || true)"
 
 if [[ $STATUS -ne 0 ]]; then
-  notify_discord "Knowledge job failed: \`${AGENT}\` on \`${TODAY}\`. Check local logs on this machine."
+  if [[ $STATUS -eq 124 ]]; then
+    notify_discord "Knowledge job timed out: \`${AGENT}\` on \`${TODAY}\` after ${JOB_TIMEOUT_SECONDS}s. Check local logs on this machine."
+  else
+    notify_discord "Knowledge job failed: \`${AGENT}\` on \`${TODAY}\`. Check local logs on this machine."
+  fi
   exit $STATUS
 fi
 
