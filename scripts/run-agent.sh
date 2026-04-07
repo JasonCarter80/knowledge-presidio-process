@@ -36,19 +36,22 @@ notify_discord() {
     return 0
   fi
 
-  python3 - <<'PY' "$DISCORD_WEBHOOK_URL" "$content" || true
-import json, sys, urllib.request, urllib.error
-url = sys.argv[1]
-content = sys.argv[2]
-data = json.dumps({"content": content}).encode("utf-8")
-req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-try:
-    urllib.request.urlopen(req, timeout=15).read()
-except urllib.error.HTTPError as exc:
-    print(f"discord notification failed: http {exc.code}", file=sys.stderr)
-except Exception as exc:
-    print(f"discord notification failed: {exc}", file=sys.stderr)
+  local payload
+  payload="$(python3 - <<'PY' "$content"
+import json, sys
+print(json.dumps({"content": sys.argv[1]}))
 PY
+)"
+
+  curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST "$DISCORD_WEBHOOK_URL" \
+    -H 'Content-Type: application/json' \
+    --data "$payload" | {
+      read -r status
+      if [[ "$status" != "204" ]]; then
+        echo "discord notification failed: http ${status}" >&2
+      fi
+    } || true
 }
 
 TODAY="$(date +%F)"
